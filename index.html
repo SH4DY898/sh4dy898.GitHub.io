@@ -1,1 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Две Точки</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #111;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            max-width: 100%;
+            max-height: 70vh;
+        }
+        .ui-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        button {
+            background-color: #ff3366;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.2s;
+            box-shadow: 0 4px 15px rgba(255, 51, 102, 0.4);
+        }
+        button:hover {
+            background-color: #ff5588;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        button:disabled {
+            background-color: #555;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+    </style>
+    <script src="https://yandex.ru/games/sdk/v3"></script>
+</head>
+<body>
 
+    <canvas id="gameCanvas" width="500" height="500"></canvas>
+    
+    <div class="ui-container">
+        <button id="adButton" disabled>Загрузка рекламы...</button>
+    </div>
+
+    <script>
+        // --- Настройка Canvas и Игры ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 150; 
+
+        // Переменная для управления паузой (нужна для рекламы)
+        let isPaused = false;
+
+        const dot1 = {
+            angle: 0,
+            baseSpeed: 0.02,
+            currentSpeed: 0.02,
+            color: '#00ffff', 
+            size: 12
+        };
+
+        const dot2 = {
+            angle: Math.PI, 
+            baseSpeed: 0.02,
+            currentSpeed: 0.02,
+            bonusSpeed: 0.06, 
+            color: '#ff3366', 
+            size: 12
+        };
+
+        // --- Игровой цикл ---
+        function update() {
+            // Если игра на паузе — не обновляем координаты (точки застывают)
+            if (isPaused) return;
+
+            dot1.angle += dot1.currentSpeed;
+            dot2.angle += dot2.currentSpeed;
+
+            if (dot1.angle > Math.PI * 2) dot1.angle -= Math.PI * 2;
+            if (dot2.angle > Math.PI * 2) dot2.angle -= Math.PI * 2;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Орбита
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Точка 1
+            const x1 = centerX + radius * Math.cos(dot1.angle);
+            const y1 = centerY + radius * Math.sin(dot1.angle);
+            ctx.beginPath();
+            ctx.arc(x1, y1, dot1.size, 0, Math.PI * 2);
+            ctx.fillStyle = dot1.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = dot1.color;
+            ctx.fill();
+
+            // Точка 2
+            const x2 = centerX + radius * Math.cos(dot2.angle);
+            const y2 = centerY + radius * Math.sin(dot2.angle);
+            ctx.beginPath();
+            ctx.arc(x2, y2, dot2.size, 0, Math.PI * 2);
+            ctx.fillStyle = dot2.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = dot2.color;
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+
+            // Визуальный индикатор паузы на экране
+            if (isPaused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 24px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('РЕКЛАМА (ПАУЗА)', centerX, centerY);
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // Старт анимации
+        loop();
+
+        // --- Инициализация SDK Яндекс Игр ---
+        let ysdk = null;
+        const adButton = document.getElementById('adButton');
+
+        function initYandexSDK() {
+            if (typeof YaGames !== 'undefined') {
+                YaGames.init()
+                    .then(_sdk => {
+                        console.log('Yandex Games SDK успешно инициализирован.');
+                        ysdk = _sdk;
+                        adButton.disabled = false;
+                        adButton.textContent = 'Ускорить синюю точку (Реклама)';
+                        ysdk.features.LoadingAPI?.ready();
+                    })
+                    .catch(err => {
+                        console.error('Ошибка при инициализации SDK Яндекса:', err);
+                        enableOfflineMode('Ошибка SDK');
+                    });
+            } else {
+                console.warn('Скрипт SDK Яндекса не найден.');
+                enableOfflineMode('Блокировщик рекламы');
+            }
+        }
+
+        function enableOfflineMode(reason) {
+            adButton.disabled = false;
+            adButton.textContent = `Ускорить (Тест паузы: ${reason})`;
+        }
+
+        // --- Логика рекламы с ПАУЗОЙ (Строго по документации Яндекс Игр) ---
+function watchAdToBoost() {
+    if (!ysdk) {
+        // Локальный тест паузы
+        console.log('Локальный тест: включаем паузу...');
+        isPaused = true; 
+        setTimeout(() => {
+            activateBoost(); 
+            isPaused = false; 
+            console.log('Локальный тест закончен.');
+        }, 2000); 
+        return;
+    }
+
+    // Вызов реальной рекламы Яндекс Игр
+    ysdk.adv.showRewardedVideo({
+        callbacks: {
+            onOpen: () => {
+                console.log('Реклама открыта.');
+                isPaused = true; // Ставим игру на паузу, когда окно открылось
+            },
+            onRewarded: () => {
+                console.log('Пользователь получил награду.');
+                activateBoost(); // Ускоряем точку за успешный просмотр
+            },
+            onClose: (wasShown) => {
+                console.log(wasShown ? 'Показана и закрыта.' : 'Не показана.');
+                
+                // В любом случае снимаем игру с паузы, чтобы она не зависла
+                isPaused = false; 
+            },
+            onError: (error) => {
+                console.log('Ошибка вызова.', error);
+                
+                // КРИТИЧЕСКИ ВАЖНО: Если произошла ошибка при открытии, 
+                // возвращаем игру в рабочее состояние, чтобы экран не застыл
+                isPaused = false; 
+                alert('Не удалось загрузить рекламу.');
+            }
+        }
+    });
+}
+
+        function activateBoost() {
+            dot2.currentSpeed = dot2.baseSpeed + dot2.bonusSpeed;
+            dot2.color = '#3399ff'; 
+            dot2.size = 16;
+            
+            adButton.disabled = true;
+            adButton.textContent = 'Точка ускорена!';
+
+            setTimeout(() => {
+                // Если эффект закончился во время новой рекламы, меняем базовые параметры,
+                // но визуально это применится, когда игра снимется с паузы.
+                dot2.currentSpeed = dot2.baseSpeed;
+                dot2.color = '#ff3366';
+                dot2.size = 12;
+                adButton.disabled = false;
+                adButton.textContent = 'Ускорить синюю точку (Реклама)';
+            }, 10000); 
+        }
+
+        adButton.addEventListener('click', watchAdToBoost);
+        initYandexSDK();
+    </script>
+</body>
+</html>
